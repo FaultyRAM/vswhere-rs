@@ -2,7 +2,7 @@
 name = "vswhere"
 version = "0.1.0"
 authors = ["FaultyRAM <explodingpsu@gmail.com>"]
-description = "Provides an idiomatic wrapper around invoking the vswhere utility."
+description = "Provides support for invoking and capturing the output of the vswhere utility."
 repository = "https://github.com/FaultyRAM/vswhere-rs"
 readme = "README.md"
 keywords = ["vs2017", "detection", "query"]

@@ -6,7 +6,7 @@
 // your option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-//! Provides an idiomatic wrapper around invoking the vswhere utility.
+//! Provides support for invoking and capturing the output of the vswhere utility.
 
 #![cfg(target_os = "windows")]
 #![forbid(warnings)]
@@ -298,7 +298,7 @@ impl Config {
         }
     }
 
-    /// Whether to include pre-release versions of Visual Studio in search results.
+    /// Specifies whether to include pre-release versions of Visual Studio in search results.
     ///
     /// By default this is `false`.
     pub fn find_prerelease_versions(&mut self, prerelease: bool) -> &mut Self {
@@ -308,9 +308,10 @@ impl Config {
 
     /// Adds a string to the product ID (Visual Studio edition) whitelist.
     ///
-    /// By default the product ID whitelist is empty, in which case it is not used. If the product
-    /// ID whitelist is non-empty, versions of Visual Studio without a matching product ID are
-    /// excluded from search results.
+    /// By default the product ID whitelist is empty, which is equivalent to passing `-products *`
+    /// to vswhere (retrieves information about every installed product, as opposed to just
+    /// Community, Professional and Enterprise). If the product ID whitelist is non-empty, versions
+    /// of Visual Studio without a matching product ID are excluded from search results.
     pub fn whitelist_product_id<T: ToString>(&mut self, product_id: &T) -> &mut Self {
         self.products.push(product_id.to_string());
         self
@@ -327,9 +328,11 @@ impl Config {
         self
     }
 
-    /// If `true`, exclude from search results Visual Studio versions that do not provide at least
-    /// one whitelisted component. Otherwise if `false` (the default value), exclude from search
-    /// results Visual Studio versions that do not provide every whitelisted component.
+    /// Specifies the method to use for component ID filtering.
+    ///
+    /// If `true`, Visual Studio versions are excluded from search results if they do not provide
+    /// at least one whitelisted component. Otherwise if `false` (the default value), Visual Studio
+    /// versions are excluded if they do not provide every whitelisted component.
     ///
     /// This is only meaningful if the component ID whitelist is non-empty, as filtering by
     /// component ID is disabled otherwise.
