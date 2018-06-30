@@ -302,6 +302,9 @@ impl Config {
 
     /// Adds a string to the product ID (Visual Studio edition) whitelist.
     ///
+    /// A list of valid product and component IDs is maintained
+    /// [here](https://docs.microsoft.com/en-us/visualstudio/install/workload-and-component-ids).
+    ///
     /// By default the product ID whitelist is empty, which is equivalent to passing `-products *`
     /// to vswhere (retrieves information about every installed product, as opposed to just
     /// Community, Professional and Enterprise). If the product ID whitelist is non-empty, versions
@@ -312,6 +315,9 @@ impl Config {
     }
 
     /// Adds a string to the component ID whitelist.
+    ///
+    /// A list of valid product and component IDs is maintained
+    /// [here](https://docs.microsoft.com/en-us/visualstudio/install/workload-and-component-ids).
     ///
     /// By default the component ID whitelist is empty, in which case it is not used. If the
     /// component ID whitelist is non-empty, versions of Visual Studio are excluded from search
