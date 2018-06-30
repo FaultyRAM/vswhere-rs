@@ -34,7 +34,7 @@ extern crate vswhere;
 use vswhere::Config;
 
 fn main() {
-    println!("{:?}", Config::run_vswhere().unwrap());
+    println!("{:?}", Config::run_default_path().unwrap());
 }
 ```
 

@@ -82,7 +82,6 @@ pub struct Config {
     requires_any: bool,
     version: Option<Range<FourPointVersion>>,
     latest: bool,
-    custom_path: Option<PathBuf>,
 }
 
 #[cfg_attr(feature = "cargo-clippy", allow(similar_names))]
@@ -149,9 +148,6 @@ pub struct InstallProperties {
     nickname: String,
     setup_engine_file_path: PathBuf,
 }
-
-/// Safe wrapper around the string object returned from `SHGetKnownFolderPath`.
-struct VSWherePath(PWSTR);
 
 fn deserialize_uppercase_bool<'de, D: Deserializer<'de>>(
     deserializer: D,
@@ -293,7 +289,6 @@ impl Config {
             requires_any: false,
             version: None,
             latest: false,
-            custom_path: None,
         }
     }
 
@@ -357,58 +352,94 @@ impl Config {
         self
     }
 
-    /// Specifies a custom path to the vswhere executable.
+    /// Invokes a vswhere instance installed in a default location.
     ///
-    /// The default path is `%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe`,
-    /// where `%ProgramFiles(x86)%` is the path returned from `SHGetKnownFolderPath` specifying
-    /// `FOLDERID_ProgramFilesX86` as the known folder ID to query. Calling this method overrides
-    /// that behaviour and instead simply uses the specified path.
-    pub fn vswhere_path<P: AsRef<Path>>(&mut self, path: P) -> &mut Self {
-        self.custom_path = Some(path.as_ref().to_owned());
-        self
+    /// This method attempts to run
+    /// `%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe`, where
+    /// `%ProgramFiles(x86)%` is the path returned from `SHGetKnownFolderPath` specifying
+    /// `FOLDERID_ProgramFilesX86` as the known folder ID to query. To run a vswhere instance that
+    /// resides elsewhere, use `Config::run_custom_path` instead.
+    pub fn run_default_path(&self) -> io::Result<Vec<InstallInfo>> {
+        struct VSWherePath(PWSTR);
+
+        impl VSWherePath {
+            /// Returns an object representing the path to vswhere.
+            pub(crate) fn fetch() -> io::Result<Self> {
+                let mut path = VSWherePath(ptr::null_mut());
+                let hres = unsafe {
+                    SHGetKnownFolderPath(&FOLDERID_ProgramFilesX86, 0, ptr::null_mut(), &mut path.0)
+                };
+                if hres == S_OK {
+                    Ok(path)
+                } else {
+                    Err(io::Error::last_os_error())
+                }
+            }
+
+            /// Consumes `self`, returning a `PathBuf` containing the path to vswhere.
+            pub(crate) fn into_pathbuf(self) -> PathBuf {
+                unsafe {
+                    let mut wide_string = self.0;
+                    let mut len = 0;
+                    while wide_string.read() != 0 {
+                        wide_string = wide_string.offset(1);
+                        len += 1;
+                    }
+                    let ws_slice = slice::from_raw_parts(self.0, len);
+                    let os_string = OsString::from_wide(ws_slice);
+                    Path::new(&os_string).join("Microsoft Visual Studio/Installer/vswhere.exe")
+                }
+            }
+        }
+
+        impl Drop for VSWherePath {
+            fn drop(&mut self) {
+                unsafe {
+                    CoTaskMemFree(self.0 as *mut c_void);
+                }
+            }
+        }
+
+        VSWherePath::fetch().and_then(|p| self.run_custom_path(&p.into_pathbuf()))
     }
 
-    /// Invokes vswhere, returning a list of detected Visual Studio installations according to the
-    /// current configuration.
-    pub fn run_vswhere(&self) -> io::Result<Vec<InstallInfo>> {
-        if let Some(custom_path) = self.custom_path.as_ref() {
-            Ok(Command::new(custom_path))
+    /// Invokes a vswhere instance at the specified path.
+    ///
+    /// The specified path must point to an executable, rather than a folder containing
+    /// `vswhere.exe`.
+    pub fn run_custom_path<P: AsRef<Path>>(&self, path: P) -> io::Result<Vec<InstallInfo>> {
+        let mut cmd = Command::new(path.as_ref());
+        if self.prerelease {
+            let _ = cmd.arg("-prerelease");
+        }
+        let _ = cmd.arg("-products");
+        if self.products.is_empty() {
+            let _ = cmd.arg("*");
         } else {
-            VSWherePath::fetch().map(|p| Command::new(&p.into_pathbuf()))
-        }.and_then(|mut cmd| {
-            if self.prerelease {
-                let _ = cmd.arg("-prerelease");
-            }
-            let _ = cmd.arg("-products");
-            if self.products.is_empty() {
-                let _ = cmd.arg("*");
-            } else {
-                let _ = cmd.args(&self.products);
-            }
-            if !self.requires.is_empty() {
-                let _ = cmd.arg("-requires").args(&self.requires);
-            }
-            if self.requires_any {
-                let _ = cmd.arg("-requiresAny");
-            }
-            if let Some(version_range) = self.version.as_ref() {
-                let _ = cmd.args(&[
-                    "-version",
-                    &format!("[{},{})", version_range.start, version_range.end),
-                ]);
-            }
-            if self.latest {
-                let _ = cmd.arg("-latest");
-            }
-            cmd.args(&["-format", "json", "-utf8"])
-                .output()
-                .map(|output| {
-                    assert!(output.status.success());
-                    let json =
-                        str::from_utf8(&output.stdout).expect("vswhere returned invalid UTF-8");
-                    serde_json::from_str(json).expect("vswhere returned invalid JSON")
-                })
-        })
+            let _ = cmd.args(&self.products);
+        }
+        if !self.requires.is_empty() {
+            let _ = cmd.arg("-requires").args(&self.requires);
+        }
+        if self.requires_any {
+            let _ = cmd.arg("-requiresAny");
+        }
+        if let Some(version_range) = self.version.as_ref() {
+            let _ = cmd.args(&[
+                "-version",
+                &format!("[{},{})", version_range.start, version_range.end),
+            ]);
+        }
+        if self.latest {
+            let _ = cmd.arg("-latest");
+        }
+        cmd.args(&["-format", "json", "-utf8"])
+            .output()
+            .map(|output| {
+                assert!(output.status.success());
+                let json = str::from_utf8(&output.stdout).expect("vswhere returned invalid UTF-8");
+                serde_json::from_str(json).expect("vswhere returned invalid JSON")
+            })
     }
 }
 
@@ -625,44 +656,6 @@ impl InstallProperties {
     }
 }
 
-impl VSWherePath {
-    /// Returns an object representing the path to vswhere.
-    pub(crate) fn fetch() -> io::Result<Self> {
-        let mut path = VSWherePath(ptr::null_mut());
-        let hres = unsafe {
-            SHGetKnownFolderPath(&FOLDERID_ProgramFilesX86, 0, ptr::null_mut(), &mut path.0)
-        };
-        if hres == S_OK {
-            Ok(path)
-        } else {
-            Err(io::Error::last_os_error())
-        }
-    }
-
-    /// Consumes `self`, returning a `PathBuf` containing the path to vswhere.
-    pub(crate) fn into_pathbuf(self) -> PathBuf {
-        unsafe {
-            let mut wide_string = self.0;
-            let mut len = 0;
-            while wide_string.read() != 0 {
-                wide_string = wide_string.offset(1);
-                len += 1;
-            }
-            let ws_slice = slice::from_raw_parts(self.0, len);
-            let os_string = OsString::from_wide(ws_slice);
-            Path::new(&os_string).join("Microsoft Visual Studio/Installer/vswhere.exe")
-        }
-    }
-}
-
-impl Drop for VSWherePath {
-    fn drop(&mut self) {
-        unsafe {
-            CoTaskMemFree(self.0 as *mut c_void);
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::env;
@@ -672,7 +665,7 @@ mod tests {
     #[test]
     fn test_default() {
         let _ = Config::default()
-            .run_vswhere()
+            .run_default_path()
             .expect("`Config::run_vswhere` failed");
     }
 
@@ -689,7 +682,8 @@ mod tests {
                 FourPointVersion::new(15, 0, 0, 0)..FourPointVersion::new(16, 0, 0, 0),
             )
             .only_latest_versions(true)
-            .vswhere_path(Path::new(&pfx86).join("Microsoft Visual Studio/Installer/vswhere.exe"))
-            .run_vswhere();
+            .run_custom_path(
+                Path::new(&pfx86).join("Microsoft Visual Studio/Installer/vswhere.exe"),
+            );
     }
 }
