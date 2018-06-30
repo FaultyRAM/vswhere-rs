@@ -18,13 +18,15 @@ and retrieve output from vswhere in an idiomatic manner.
 
 ## Requirements
 
-This crate works with vswhere 2.52 or newer. vswhere is installed alongside Visual Studio
-Installer, but can also be installed separately or over the top of existing installations (refer to
-the vswhere GitHub page for more information). Earlier versions of vswhere will not work since they
-do not support the `-utf8` flag, which forces vswhere to generate UTF-8 output (by default the
-generated output uses the system default encoding). vswhere is typically installed to
-`%ProgramFiles(x86)%\Microsoft Visual Studio\Installer`, a stable location; this crate uses that
-path by default, but also supports specifying a custom path e.g. for testing purposes.
+This crate works with vswhere 2.5.2 or newer. Older versions are not supported since they do not
+accept the `-utf8` flag, which forces vswhere to generate UTF-8 encoded output (otherwise vswhere
+uses the system default encoding). vswhere can be installed in one of three different ways:
+
+* Via [Chocolatey][6] (recommended - package page [here][7]);
+* As part of Visual Studio Installer (vswhere.exe will be located in
+  `%ProgramFiles(x86)%\Microsoft Visual Studio\Installer` - note that the bundled version tends to
+  be outdated);
+* [Manually][8], by downloading vswhere.exe to the desired location.
 
 ## Example
 
@@ -60,3 +62,6 @@ conditions.
 [3]: https://crates.io/crates/vswhere
 [4]: https://docs.rs/vswhere
 [5]: https://github.com/Microsoft/vswhere
+[6]: https://chocolatey.org
+[7]: https://chocolatey.org/packages/vswhere
+[8]: https://github.com/Microsoft/vswhere/releases

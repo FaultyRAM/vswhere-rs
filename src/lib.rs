@@ -47,7 +47,7 @@ use serde::de::{Unexpected, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::ffi::OsString;
 use std::fmt::{self, Display, Formatter};
-use std::io;
+use std::io::{self, ErrorKind};
 use std::iter;
 use std::ops::Range;
 use std::os::windows::ffi::OsStringExt;
@@ -57,12 +57,6 @@ use std::ptr;
 use std::slice;
 use std::str;
 use url::Url;
-use winapi::ctypes::c_void;
-use winapi::shared::ntdef::PWSTR;
-use winapi::shared::winerror::S_OK;
-use winapi::um::combaseapi::CoTaskMemFree;
-use winapi::um::knownfolders::FOLDERID_ProgramFilesX86;
-use winapi::um::shlobj::SHGetKnownFolderPath;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 /// A version number that consists of four integers, widely used within the Windows world.
@@ -358,61 +352,72 @@ impl Config {
         self
     }
 
-    /// Invokes a vswhere instance installed in a default location.
+    /// Invokes a vswhere instance installed in a default location, using the current
+    /// configuration.
     ///
-    /// This method attempts to run
-    /// `%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe`, where
-    /// `%ProgramFiles(x86)%` is the path returned from `SHGetKnownFolderPath` specifying
-    /// `FOLDERID_ProgramFilesX86` as the known folder ID to query. To run a vswhere instance that
-    /// resides elsewhere, use `Config::run_custom_path` instead.
+    /// This method tries running known vswhere instances, stopping at the first successful
+    /// invocation, in the following order:
+    ///
+    /// 1. `[ProgramData]\chocolatey\bin\vswhere.exe`
+    /// 2. `[ProgramFilesX86]\Microsoft Visual Studio\Installer\vswhere.exe`
+    ///
+    /// Note that `[ProgramData]` and `[ProgramFilesX86]` correspond to paths returned from the
+    /// Windows API function `SHGetKnownFolderPath`.
     pub fn run_default_path(&self) -> io::Result<Vec<InstallInfo>> {
-        struct VSWherePath(PWSTR);
+        use winapi::ctypes::c_void;
+        use winapi::shared::ntdef::PWSTR;
+        use winapi::shared::winerror::S_OK;
+        use winapi::um::combaseapi::CoTaskMemFree;
+        use winapi::um::knownfolders::{FOLDERID_ProgramData, FOLDERID_ProgramFilesX86};
+        use winapi::um::shlobj::SHGetKnownFolderPath;
+        use winapi::um::shtypes::REFKNOWNFOLDERID;
 
-        impl VSWherePath {
-            /// Returns an object representing the path to vswhere.
-            pub(crate) fn fetch() -> io::Result<Self> {
-                let mut path = VSWherePath(ptr::null_mut());
-                let hres = unsafe {
-                    SHGetKnownFolderPath(&FOLDERID_ProgramFilesX86, 0, ptr::null_mut(), &mut path.0)
-                };
-                if hres == S_OK {
-                    Ok(path)
-                } else {
-                    Err(io::Error::last_os_error())
+        fn get_known_folder_path(id: REFKNOWNFOLDERID) -> io::Result<PathBuf> {
+            struct KnownFolderPath(PWSTR);
+
+            impl Drop for KnownFolderPath {
+                fn drop(&mut self) {
+                    unsafe {
+                        CoTaskMemFree(self.0 as *mut c_void);
+                    }
                 }
             }
 
-            /// Consumes `self`, returning a `PathBuf` containing the path to vswhere.
-            pub(crate) fn into_pathbuf(self) -> PathBuf {
-                unsafe {
-                    let mut wide_string = self.0;
+            unsafe {
+                let mut path = KnownFolderPath(ptr::null_mut());
+                let hres = SHGetKnownFolderPath(id, 0, ptr::null_mut(), &mut path.0);
+                if hres == S_OK {
+                    let mut wide_string = path.0;
                     let mut len = 0;
                     while wide_string.read() != 0 {
                         wide_string = wide_string.offset(1);
                         len += 1;
                     }
-                    let ws_slice = slice::from_raw_parts(self.0, len);
+                    let ws_slice = slice::from_raw_parts(path.0, len);
                     let os_string = OsString::from_wide(ws_slice);
-                    Path::new(&os_string).join("Microsoft Visual Studio/Installer/vswhere.exe")
+                    Ok(Path::new(&os_string).to_owned())
+                } else {
+                    Err(io::Error::last_os_error())
                 }
             }
         }
 
-        impl Drop for VSWherePath {
-            fn drop(&mut self) {
-                unsafe {
-                    CoTaskMemFree(self.0 as *mut c_void);
-                }
+        let pd = get_known_folder_path(&FOLDERID_ProgramData)
+            .map(|p| p.join(r"chocolatey\bin\vswhere.exe"))?;
+        self.run_custom_path(pd).or_else(|e| {
+            if e.kind() == ErrorKind::NotFound {
+                get_known_folder_path(&FOLDERID_ProgramFilesX86)
+                    .map(|p| p.join(r"Microsoft Visual Studio\Installer\vswhere.exe"))
+                    .and_then(|p| self.run_custom_path(p))
+            } else {
+                Err(e)
             }
-        }
-
-        VSWherePath::fetch().and_then(|p| self.run_custom_path(&p.into_pathbuf()))
+        })
     }
 
-    /// Invokes a vswhere instance at the specified path.
+    /// Invokes a vswhere instance at the specified path, using the current configuration.
     ///
-    /// The specified path must point to an executable, rather than a folder containing
-    /// `vswhere.exe`.
+    /// The specified path must point to an executable, rather than a folder.
     pub fn run_custom_path<P: AsRef<Path>>(&self, path: P) -> io::Result<Vec<InstallInfo>> {
         let mut cmd = Command::new(path.as_ref());
         if self.prerelease {
@@ -664,32 +669,44 @@ impl InstallProperties {
 
 #[cfg(test)]
 mod tests {
-    use std::env;
-    use std::path::Path;
     use {Config, FourPointVersion};
 
     #[test]
     fn test_default() {
-        let _ = Config::default()
-            .run_default_path()
-            .expect("`Config::run_vswhere` failed");
+        let _ = Config::default().run_default_path().expect("failed");
     }
 
     #[test]
-    fn test_everything() {
-        let pfx86 = env::var_os("ProgramFiles(x86)")
-            .expect("`ProgramFiles(x86)` environment variable not set");
+    fn test_args() {
         let _ = Config::new()
             .find_prerelease_versions(true)
             .whitelist_product_id("*")
             .whitelist_component_id("Microsoft.VisualStudio.Component.VC.Tools.x86.x64")
             .require_any_component(true)
             .version_number_range(
-                FourPointVersion::new(15, 0, 0, 0)..FourPointVersion::new(16, 0, 0, 0),
+                FourPointVersion::new(
+                    u16::min_value(),
+                    u16::min_value(),
+                    u16::min_value(),
+                    u16::min_value(),
+                )
+                    ..FourPointVersion::new(
+                        u16::max_value(),
+                        u16::max_value(),
+                        u16::max_value(),
+                        u16::max_value(),
+                    ),
             )
             .only_latest_versions(true)
-            .run_custom_path(
-                Path::new(&pfx86).join("Microsoft Visual Studio/Installer/vswhere.exe"),
-            );
+            .run_default_path()
+            .expect("failed");
+    }
+
+    #[test]
+    fn test_fake_product() {
+        let _ = Config::new()
+            .whitelist_product_id("The quick brown fox jumps over the lazy dog.")
+            .run_default_path()
+            .expect("failed");
     }
 }
