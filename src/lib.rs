@@ -11,7 +11,6 @@
 #![cfg(target_os = "windows")]
 #![forbid(warnings)]
 #![forbid(future_incompatible)]
-#![deny(rust_2018_idioms)]
 #![deny(unused)]
 #![forbid(box_pointers)]
 #![forbid(missing_copy_implementations)]
@@ -312,7 +311,7 @@ impl Config {
     /// to vswhere (retrieves information about every installed product, as opposed to just
     /// Community, Professional and Enterprise). If the product ID whitelist is non-empty, versions
     /// of Visual Studio without a matching product ID are excluded from search results.
-    pub fn whitelist_product_id<T: ToString>(&mut self, product_id: &T) -> &mut Self {
+    pub fn whitelist_product_id<T: ToString + ?Sized>(&mut self, product_id: &T) -> &mut Self {
         self.products.push(product_id.to_string());
         self
     }
@@ -323,7 +322,7 @@ impl Config {
     /// component ID whitelist is non-empty, versions of Visual Studio are excluded from search
     /// results based on the filtering method in use (see `Config::require_any_component` for
     /// more information).
-    pub fn whitelist_component_id<T: ToString>(&mut self, component_id: &T) -> &mut Self {
+    pub fn whitelist_component_id<T: ToString + ?Sized>(&mut self, component_id: &T) -> &mut Self {
         self.requires.push(component_id.to_string());
         self
     }
@@ -661,5 +660,36 @@ impl Drop for VSWherePath {
         unsafe {
             CoTaskMemFree(self.0 as *mut c_void);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::env;
+    use std::path::Path;
+    use {Config, FourPointVersion};
+
+    #[test]
+    fn test_default() {
+        let _ = Config::default()
+            .run_vswhere()
+            .expect("`Config::run_vswhere` failed");
+    }
+
+    #[test]
+    fn test_everything() {
+        let pfx86 = env::var_os("ProgramFiles(x86)")
+            .expect("`ProgramFiles(x86)` environment variable not set");
+        let _ = Config::new()
+            .find_prerelease_versions(true)
+            .whitelist_product_id("*")
+            .whitelist_component_id("Microsoft.VisualStudio.Component.VC.Tools.x86.x64")
+            .require_any_component(true)
+            .version_number_range(
+                FourPointVersion::new(15, 0, 0, 0)..FourPointVersion::new(16, 0, 0, 0),
+            )
+            .only_latest_versions(true)
+            .vswhere_path(Path::new(&pfx86).join("Microsoft Visual Studio/Installer/vswhere.exe"))
+            .run_vswhere();
     }
 }
