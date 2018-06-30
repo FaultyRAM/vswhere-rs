@@ -1,0 +1,14 @@
+dist: trusty
+sudo: false
+os:
+  - linux
+  - osx
+language: rust
+rust:
+  - stable
+  - beta
+  - nightly
+matrix:
+  allow_failures:
+    - beta
+    - nightly
