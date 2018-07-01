@@ -1,4 +1,5 @@
 # vswhere-rs
+
 [![Travis CI](https://travis-ci.com/FaultyRAM/vswhere-rs.svg)][1]
 [![AppVeyor](https://ci.appveyor.com/api/projects/status/a6p7trkglc90jcd3?retina=true&svg=true)][2]
 [![Crates.io](https://img.shields.io/crates/v/vswhere.svg)][3]
