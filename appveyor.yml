@@ -3,15 +3,15 @@ environment:
   matrix:
     - TARGET: x86_64-pc-windows-msvc
       CHANNEL: stable
-      CARGO_CHECK: cargo check --tests
+      CARGO_CHECK: cargo check
       CARGO_FMT: cargo fmt -- --write-mode diff
     - TARGET: x86_64-pc-windows-msvc
       CHANNEL: beta
-      CARGO_CHECK: cargo check --tests
+      CARGO_CHECK: cargo check
       CARGO_FMT: cargo fmt -- --check
     - TARGET: x86_64-pc-windows-msvc
       CHANNEL: nightly
-      CARGO_CHECK: cargo clippy --tests
+      CARGO_CHECK: cargo clippy && cargo clippy --tests
       CARGO_FMT: cargo fmt -- --check
 matrix:
   allow_failures:
