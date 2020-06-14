@@ -1,6 +1,6 @@
 [package]
 name = "vswhere"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["FaultyRAM <explodingpsu@gmail.com>"]
 description = "Provides support for invoking and capturing the output of the vswhere utility."
 repository = "https://github.com/FaultyRAM/vswhere-rs"

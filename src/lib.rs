@@ -63,7 +63,7 @@ pub struct InstallInfo {
     display_name: String,
     description: String,
     channel_id: String,
-    channel_path: PathBuf,
+    channel_path: Option<PathBuf>,
     channel_uri: Url,
     engine_path: PathBuf,
     release_notes: Url,
@@ -93,7 +93,7 @@ pub struct InstallCatalog {
     product_name: String,
     product_patch_version: String,
     product_pre_release_milestone_suffix: String,
-    product_release: String,
+    product_release: Option<String>,
     product_semantic_version: Version,
     required_engine_version: FourPointVersion,
 }
@@ -482,8 +482,8 @@ impl InstallInfo {
 
     /// Returns the filesystem path to the catalog file for the release channel that a Visual
     /// Studio instance is associated with.
-    pub fn channel_path(&self) -> &Path {
-        &self.channel_path
+    pub fn channel_path(&self) -> Option<&Path> {
+        self.channel_path.as_deref()
     }
 
     /// Returns the URL from where release channel updates are fetched.
@@ -594,8 +594,8 @@ impl InstallCatalog {
     }
 
     /// {TODO}
-    pub fn product_release(&self) -> &str {
-        &self.product_release
+    pub fn product_release(&self) -> Option<&str> {
+        self.product_release.as_deref()
     }
 
     /// Returns the semver-compliant version number for a Visual Studio instance.
@@ -633,7 +633,7 @@ impl InstallProperties {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Config, FourPointVersion};
+    use crate::{Config, FourPointVersion, InstallInfo};
 
     #[test]
     fn test_default() {
@@ -672,5 +672,60 @@ mod tests {
             .whitelist_product_id("The quick brown fox jumps over the lazy dog.")
             .run_default_path()
             .expect("failed");
+    }
+
+    #[test]
+    fn test_real_world_json() {
+        const JSON: &str = r#"
+[
+  {
+    "instanceId": "a55eaca4",
+    "installDate": "2019-11-24T18:43:52Z",
+    "installationName": "VisualStudio/16.6.1+30128.74",
+    "installationPath": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community",
+    "installationVersion": "16.6.30128.74",
+    "productId": "Microsoft.VisualStudio.Product.Community",
+    "productPath": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\Common7\\IDE\\devenv.exe",
+    "state": 4294967295,
+    "isComplete": true,
+    "isLaunchable": true,
+    "isPrerelease": false,
+    "isRebootRequired": false,
+    "displayName": "Visual Studio Community 2019",
+    "description": "Мощная интегрированная среда разработки, бесплатная для студентов, участников проектов с открытым кодом и отдельных пользователей.",
+    "channelId": "VisualStudio.16.Release",
+    "channelUri": "https://aka.ms/vs/16/release/channel",
+    "enginePath": "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\resources\\app\\ServiceHub\\Services\\Microsoft.VisualStudio.Setup.Service",
+    "releaseNotes": "https://go.microsoft.com/fwlink/?LinkId=660893#16.6.1",
+    "thirdPartyNotices": "https://go.microsoft.com/fwlink/?LinkId=660909",
+    "updateDate": "2020-06-06T18:41:05.3535489Z",
+    "catalog": {
+      "buildBranch": "d16.6",
+      "buildVersion": "16.6.30128.74",
+      "id": "VisualStudio/16.6.1+30128.74",
+      "localBuild": "build-lab",
+      "manifestName": "VisualStudio",
+      "manifestType": "installer",
+      "productDisplayVersion": "16.6.1",
+      "productLine": "Dev16",
+      "productLineVersion": "2019",
+      "productMilestone": "RTW",
+      "productMilestoneIsPreRelease": "False",
+      "productName": "Visual Studio",
+      "productPatchVersion": "1",
+      "productPreReleaseMilestoneSuffix": "1.0",
+      "productSemanticVersion": "16.6.1+30128.74",
+      "requiredEngineVersion": "2.6.2109.55756"
+    },
+    "properties": {
+      "campaignId": "",
+      "channelManifestId": "VisualStudio.16.Release/16.6.1+30128.74",
+      "nickname": "",
+      "setupEngineFilePath": "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\vs_installershell.exe"
+    }
+  }
+]
+"#;
+        let _: Vec<InstallInfo> = serde_json::from_str(JSON).expect("failed");
     }
 }
