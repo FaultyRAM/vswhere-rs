@@ -9,36 +9,6 @@
 //! Provides support for invoking and capturing the output of the vswhere utility.
 
 #![cfg(target_os = "windows")]
-#![forbid(warnings)]
-#![forbid(future_incompatible)]
-#![deny(unused)]
-#![forbid(box_pointers)]
-#![forbid(missing_copy_implementations)]
-#![forbid(missing_debug_implementations)]
-#![forbid(missing_docs)]
-#![forbid(trivial_casts)]
-#![forbid(trivial_numeric_casts)]
-#![forbid(unused_import_braces)]
-#![deny(unused_qualifications)]
-#![forbid(unused_results)]
-#![forbid(variant_size_differences)]
-#![cfg_attr(feature = "cargo-clippy", forbid(clippy))]
-#![cfg_attr(feature = "cargo-clippy", deny(clippy_pedantic))]
-#![cfg_attr(feature = "cargo-clippy", forbid(clippy_cargo))]
-#![cfg_attr(feature = "cargo-clippy", forbid(clippy_complexity))]
-#![cfg_attr(feature = "cargo-clippy", deny(clippy_correctness))]
-#![cfg_attr(feature = "cargo-clippy", deny(clippy_perf))]
-#![cfg_attr(feature = "cargo-clippy", forbid(clippy_style))]
-
-extern crate chrono;
-extern crate semver;
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
-extern crate serde_json;
-extern crate url;
-extern crate url_serde;
-extern crate winapi;
 
 use chrono::offset::Utc;
 use chrono::DateTime;
@@ -78,7 +48,6 @@ pub struct Config {
     latest: bool,
 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(similar_names))]
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 /// Information about a Visual Studio installation.
@@ -95,19 +64,15 @@ pub struct InstallInfo {
     description: String,
     channel_id: String,
     channel_path: PathBuf,
-    #[serde(with = "url_serde")]
     channel_uri: Url,
     engine_path: PathBuf,
-    #[serde(with = "url_serde")]
     release_notes: Url,
-    #[serde(with = "url_serde")]
     third_party_notices: Url,
     update_date: DateTime<Utc>,
     catalog: InstallCatalog,
     properties: InstallProperties,
 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(similar_names))]
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 /// Catalog information for a Visual Studio installation.
@@ -171,7 +136,6 @@ fn deserialize_uppercase_bool<'de, D: Deserializer<'de>>(
     deserializer.deserialize_str(UppercaseBoolVisitor)
 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(trivially_copy_pass_by_ref))]
 fn serialize_uppercase_bool<S: Serializer>(
     boolean: &bool,
     serializer: S,
@@ -669,7 +633,7 @@ impl InstallProperties {
 
 #[cfg(test)]
 mod tests {
-    use {Config, FourPointVersion};
+    use crate::{Config, FourPointVersion};
 
     #[test]
     fn test_default() {
