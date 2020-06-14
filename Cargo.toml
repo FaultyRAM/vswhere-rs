@@ -8,29 +8,26 @@ readme = "README.md"
 keywords = ["vs2017", "detection", "query"]
 categories = ["development-tools::build-utils"]
 license = "Apache-2.0 OR MIT"
+edition = "2018"
 
 [target.'cfg(target_os = "windows")'.dependencies.chrono]
 version = "0.4"
 features = ["serde"]
 
 [target.'cfg(target_os = "windows")'.dependencies.semver]
-version = "0.9"
+version = "0.10"
 features = ["serde"]
 
 [target.'cfg(target_os = "windows")'.dependencies.serde]
 version = "1"
-
-[target.'cfg(target_os = "windows")'.dependencies.serde_derive]
-version = "1"
+features = ["derive"]
 
 [target.'cfg(target_os = "windows")'.dependencies.serde_json]
 version = "1"
 
 [target.'cfg(target_os = "windows")'.dependencies.url]
-version = "1"
-
-[target.'cfg(target_os = "windows")'.dependencies.url_serde]
-version = "0.2"
+version = "2"
+features = ["serde"]
 
 [target.'cfg(target_os = "windows")'.dependencies.winapi]
 version = "0.3"
