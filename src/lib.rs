@@ -21,12 +21,24 @@
 
 #[derive(Clone, Debug)]
 /// Controls vswhere invocation via builder-style configuration.
-pub struct Config {}
+pub struct Config {
+    all: bool,
+}
 
 impl Config {
     /// Creates a new invocation builder with default parameters.
     pub const fn new() -> Self {
-        Self {}
+        Self {
+            all: false,
+        }
+    }
+
+    /// If `true`, vswhere will include incomplete and/or non-functional instances in its results.
+    ///
+    /// The default value for this setting is `false`.
+    pub fn all(&mut self, value: bool) -> &mut Self {
+        self.all = value;
+        self
     }
 }
 
