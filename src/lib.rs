@@ -29,3 +29,9 @@ impl Config {
         Self {}
     }
 }
+
+impl Default for Config {
+    fn default() -> Self {
+        Self::new()
+    }
+}
