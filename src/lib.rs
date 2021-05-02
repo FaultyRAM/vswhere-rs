@@ -23,6 +23,7 @@
 /// Controls vswhere invocation via builder-style configuration.
 pub struct Config {
     all: bool,
+    prerelease: bool,
 }
 
 impl Config {
@@ -30,6 +31,7 @@ impl Config {
     pub const fn new() -> Self {
         Self {
             all: false,
+            prerelease: false,
         }
     }
 
@@ -38,6 +40,14 @@ impl Config {
     /// The default value for this setting is `false`.
     pub fn all(&mut self, value: bool) -> &mut Self {
         self.all = value;
+        self
+    }
+
+    /// If `true`, vswhere will include prelease instances in its results.
+    ///
+    /// The default value for this setting is `false`.
+    pub fn prerelease(&mut self, value: bool) -> &mut Self {
+        self.prerelease = value;
         self
     }
 }
