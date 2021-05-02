@@ -1,0 +1,17 @@
+name: Continous Integration
+on: [push, pull_request]
+env:
+  CARGO_TERM_COLOR: always
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Check Syntax
+        run: cargo clippy --all-targets -vv
+      - name: Run Tests
+        run: cargo test -vv
+      - name: Build Documentation
+        run: cargo doc --no-deps -vv
+      - name: Check Formatting
+        run: cargo fmt -v -- --check
