@@ -21,17 +21,19 @@
 
 #[derive(Clone, Debug)]
 /// Controls vswhere invocation via builder-style configuration.
-pub struct Config {
+pub struct Config<'a, 'b> {
     all: bool,
     prerelease: bool,
+    products: Option<&'a [&'b str]>,
 }
 
-impl Config {
+impl<'a, 'b> Config<'a, 'b> {
     /// Creates a new invocation builder with default parameters.
     pub const fn new() -> Self {
         Self {
             all: false,
             prerelease: false,
+            products: None,
         }
     }
 
@@ -50,9 +52,20 @@ impl Config {
         self.prerelease = value;
         self
     }
+
+    /// If `Some`, replaces the default product ID allowlist with a user-provided list.
+    ///
+    /// To include all product IDs, use `Some(&["*"])`.
+    ///
+    /// The default allowlist that vswhere uses includes product IDs that correspond to the
+    /// Community, Professional, and Enterprise editions of Visual Studio.
+    pub fn products(&mut self, value: Option<&'a [&'b str]>) -> &mut Self {
+        self.products = value;
+        self
+    }
 }
 
-impl Default for Config {
+impl<'a, 'b> Default for Config<'a, 'b> {
     fn default() -> Self {
         Self::new()
     }
