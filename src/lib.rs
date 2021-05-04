@@ -20,15 +20,15 @@
 #![allow(clippy::must_use_candidate)]
 
 #[derive(Clone, Debug)]
-/// Controls vswhere invocation via builder-style configuration.
-pub struct Config<'a, 'b, 'c, 'd> {
+/// Constructs a vswhere query for modern products.
+pub struct ModernQuery<'a, 'b, 'c, 'd> {
     all: bool,
     prerelease: bool,
     products: Option<&'a [&'b str]>,
     requires: Option<Requires<'c, 'd>>,
 }
 
-impl<'a, 'b, 'c, 'd> Config<'a, 'b, 'c, 'd> {
+impl<'a, 'b, 'c, 'd> ModernQuery<'a, 'b, 'c, 'd> {
     /// Creates a new invocation builder with default parameters.
     pub const fn new() -> Self {
         Self {
@@ -76,7 +76,7 @@ impl<'a, 'b, 'c, 'd> Config<'a, 'b, 'c, 'd> {
     }
 }
 
-impl<'a, 'b, 'c, 'd> Default for Config<'a, 'b, 'c, 'd> {
+impl<'a, 'b, 'c, 'd> Default for ModernQuery<'a, 'b, 'c, 'd> {
     fn default() -> Self {
         Self::new()
     }
