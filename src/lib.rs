@@ -40,18 +40,23 @@ pub trait Query: Sealed {
 pub struct ModernQuery<'a, 'b, 'c, 'd> {
     all: bool,
     prerelease: bool,
-    products: Option<&'a [&'b str]>,
-    requires: Option<Requires<'c, 'd>>,
+    products: &'a [&'b str],
+    requires: &'c [&'d str],
+    requires_any: bool,
 }
 
 impl<'a, 'b, 'c, 'd> ModernQuery<'a, 'b, 'c, 'd> {
+    const EMPTY_PRODUCTS: &'a [&'b str] = &[];
+    const EMPTY_REQUIRES: &'c [&'d str] = &[];
+
     /// Creates a new invocation builder with default parameters.
     pub const fn new() -> Self {
         Self {
             all: false,
             prerelease: false,
-            products: None,
-            requires: None,
+            products: Self::EMPTY_PRODUCTS,
+            requires: Self::EMPTY_REQUIRES,
+            requires_any: false,
         }
     }
 
@@ -71,23 +76,34 @@ impl<'a, 'b, 'c, 'd> ModernQuery<'a, 'b, 'c, 'd> {
         self
     }
 
-    /// If `Some`, replaces the default product ID allowlist with a user-provided list.
+    /// Specifies the product ID allowlist that vswhere should use.
     ///
-    /// To include all product IDs, use `Some(&["*"])`.
+    /// To include all product IDs, use `&["*"]`.
     ///
-    /// The default allowlist that vswhere uses includes product IDs that correspond to the
-    /// Community, Professional, and Enterprise editions of Visual Studio.
-    pub fn products(&mut self, value: Option<&'a [&'b str]>) -> &mut Self {
+    /// The default value for this setting is an empty slice (`&[]`). In this case, vswhere will
+    /// use a default allowlist, containing product IDs that correspond to the Community,
+    /// Professional, and Enterprise editions of Visual Studio.
+    pub fn products(&mut self, value: &'a [&'b str]) -> &mut Self {
         self.products = value;
         self
     }
 
-    /// If `Some`, vswhere will use the given component/workload ID allowlist to limit the returned
-    /// instances.
+    /// Specifies the component/workload ID allowlist that vswhere should use.
     ///
-    /// The default value for this setting is `None`.
-    pub fn requires(&mut self, value: Option<Requires<'c, 'd>>) -> &mut Self {
+    /// The default value for this setting is an empty slice (`&[]`). In this case, vswhere will
+    /// not use a component/workload ID allowlist.
+    pub fn requires(&mut self, value: &'c [&'d str]) -> &mut Self {
         self.requires = value;
+        self
+    }
+
+    /// If `true`, and a component/workload ID allowlist is specified via `ModernQuery::requires`,
+    /// vswhere will instead return instances that have at least one of the component or workload
+    /// IDs in the list.
+    ///
+    /// The default value for this setting is `false`.
+    pub fn requires_any(&mut self, value: bool) -> &mut Self {
+        self.requires_any = value;
         self
     }
 }
@@ -106,33 +122,19 @@ impl<'a, 'b, 'c, 'd> Query for ModernQuery<'a, 'b, 'c, 'd> {
         if self.prerelease {
             let _ = cmd.arg("-prerelease");
         }
-        if let Some(products) = self.products {
-            let _ = cmd.arg("-products");
-            let _ = cmd.args(products);
+        if !self.requires_any {
+            let _ = cmd.arg("-requiresAny");
         }
-        match self.requires {
-            Some(Requires::Any(ids)) => {
-                let _ = cmd.args(&["-requiresAny", "-requires"]);
-                let _ = cmd.args(ids);
-            }
-            Some(Requires::All(ids)) => {
-                let _ = cmd.arg("-requires");
-                let _ = cmd.args(ids);
-            }
-            None => {}
+        if !self.products.is_empty() {
+            let _ = cmd.arg("-products");
+            let _ = cmd.args(self.products);
+        }
+        if !self.requires.is_empty() {
+            let _ = cmd.arg("-requires");
+            let _ = cmd.args(self.requires);
         }
     }
 }
 
 #[doc(hidden)]
 impl<'a, 'b, 'c, 'd> Sealed for ModernQuery<'a, 'b, 'c, 'd> {}
-
-#[derive(Clone, Debug)]
-/// A component/workload ID allowlist.
-pub enum Requires<'a, 'b> {
-    /// An allowlist that includes only instances with at least one of the given component or
-    /// workload IDs.
-    Any(&'a [&'b str]),
-    /// An allowlist that includes only instances with all of the given component or workload IDs.
-    All(&'a [&'b str]),
-}
