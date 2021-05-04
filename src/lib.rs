@@ -19,6 +19,22 @@
 )]
 #![allow(clippy::must_use_candidate)]
 
+mod sealed {
+    pub trait Sealed {}
+}
+
+use sealed::Sealed;
+use std::process::Command;
+
+/// A trait shared by vswhere queries.
+///
+/// This sealed trait is an implementation detail, and not intended for use outside of this crate.
+pub trait Query: Sealed {
+    #[doc(hidden)]
+    /// Populates a `Command` with command line arguments generated from a query.
+    fn populate_args(&self, cmd: &mut Command);
+}
+
 #[derive(Clone, Debug)]
 /// Constructs a vswhere query for modern products.
 pub struct ModernQuery<'a, 'b, 'c, 'd> {
@@ -81,6 +97,35 @@ impl<'a, 'b, 'c, 'd> Default for ModernQuery<'a, 'b, 'c, 'd> {
         Self::new()
     }
 }
+
+impl<'a, 'b, 'c, 'd> Query for ModernQuery<'a, 'b, 'c, 'd> {
+    fn populate_args(&self, cmd: &mut Command) {
+        if self.all {
+            let _ = cmd.arg("-all");
+        }
+        if self.prerelease {
+            let _ = cmd.arg("-prerelease");
+        }
+        if let Some(products) = self.products {
+            let _ = cmd.arg("-products");
+            let _ = cmd.args(products);
+        }
+        match self.requires {
+            Some(Requires::Any(ids)) => {
+                let _ = cmd.args(&["-requiresAny", "-requires"]);
+                let _ = cmd.args(ids);
+            }
+            Some(Requires::All(ids)) => {
+                let _ = cmd.arg("-requires");
+                let _ = cmd.args(ids);
+            }
+            None => {}
+        }
+    }
+}
+
+#[doc(hidden)]
+impl<'a, 'b, 'c, 'd> Sealed for ModernQuery<'a, 'b, 'c, 'd> {}
 
 #[derive(Clone, Debug)]
 /// A component/workload ID allowlist.
