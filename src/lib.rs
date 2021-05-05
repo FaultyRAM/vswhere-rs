@@ -7,7 +7,6 @@
 
 //! Provides support for invoking and capturing the output of the vswhere utility.
 
-#![forbid(unsafe_code)]
 #![deny(
     clippy::all,
     clippy::pedantic,
@@ -24,7 +23,12 @@ mod sealed {
 }
 
 use sealed::Sealed;
-use std::process::Command;
+use std::{
+    fmt::{self, Display, Formatter},
+    io::Write,
+    process::Command,
+    str,
+};
 
 /// A trait shared by vswhere queries.
 ///
@@ -43,6 +47,7 @@ pub struct ModernQuery<'a, 'b, 'c, 'd> {
     products: &'a [&'b str],
     requires: &'c [&'d str],
     requires_any: bool,
+    version: VersionRange,
 }
 
 impl<'a, 'b, 'c, 'd> ModernQuery<'a, 'b, 'c, 'd> {
@@ -57,6 +62,7 @@ impl<'a, 'b, 'c, 'd> ModernQuery<'a, 'b, 'c, 'd> {
             products: Self::EMPTY_PRODUCTS,
             requires: Self::EMPTY_REQUIRES,
             requires_any: false,
+            version: VersionRange::new(),
         }
     }
 
@@ -106,6 +112,22 @@ impl<'a, 'b, 'c, 'd> ModernQuery<'a, 'b, 'c, 'd> {
         self.requires_any = value;
         self
     }
+
+    /// Specifies a range of versions that vswhere will look for.
+    ///
+    /// Both the lower and upper bounds are inclusive.
+    ///
+    /// A value of `None` represents an infinite bound, i.e. a lower bound of `None` returns all
+    /// versions up to and including the upper bound, while an upper bound of `None` returns all
+    /// versions starting from the lower bound.
+    ///
+    /// By default, both bounds are `None`. In this case, vswhere will not limit search results
+    /// based on version.
+    pub fn version(&mut self, lower: Option<Version>, upper: Option<Version>) -> &mut Self {
+        self.version.lower = lower;
+        self.version.upper = upper;
+        self
+    }
 }
 
 impl<'a, 'b, 'c, 'd> Default for ModernQuery<'a, 'b, 'c, 'd> {
@@ -133,8 +155,89 @@ impl<'a, 'b, 'c, 'd> Query for ModernQuery<'a, 'b, 'c, 'd> {
             let _ = cmd.arg("-requires");
             let _ = cmd.args(self.requires);
         }
+        self.version.populate_args(cmd);
     }
 }
 
 #[doc(hidden)]
 impl<'a, 'b, 'c, 'd> Sealed for ModernQuery<'a, 'b, 'c, 'd> {}
+
+#[derive(Clone, Copy, Debug)]
+struct VersionRange {
+    lower: Option<Version>,
+    upper: Option<Version>,
+}
+
+impl VersionRange {
+    const fn new() -> Self {
+        Self {
+            lower: None,
+            upper: None,
+        }
+    }
+}
+
+impl Default for VersionRange {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Display for VersionRange {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match (self.lower, self.upper) {
+            (Some(lower), Some(upper)) => f.write_fmt(format_args!("{},{}", lower, upper)),
+            (Some(lower), None) => f.write_fmt(format_args!("{},", lower)),
+            (None, Some(upper)) => f.write_fmt(format_args!(",{}", upper)),
+            (None, None) => Ok(()),
+        }
+    }
+}
+
+impl Query for VersionRange {
+    fn populate_args(&self, cmd: &mut Command) {
+        let mut buffer = [0; 47];
+        write!(&mut buffer[..], "{}", self).unwrap();
+        let last = buffer
+            .iter()
+            .position(|&e| e == b'\0')
+            .map_or(buffer.len(), usize::from);
+        if last > 0 {
+            // SAFETY: if `<VersionRange as Display>::fmt` doesn't output a UTF-8 string, we have a
+            // very big problem.
+            let s = unsafe { str::from_utf8_unchecked(&buffer[..last]) };
+            let _ = cmd.args(&["-version", s]);
+        }
+    }
+}
+
+impl Sealed for VersionRange {}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+/// A version number, in the format `[major].[minor].[revision].[build]`.
+pub struct Version {
+    pub major: u16,
+    pub minor: u16,
+    pub revision: u16,
+    pub build: u16,
+}
+
+impl Default for Version {
+    fn default() -> Self {
+        Self {
+            major: 0,
+            minor: 0,
+            revision: 0,
+            build: 0,
+        }
+    }
+}
+
+impl Display for Version {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!(
+            "{}.{}.{}.{}",
+            self.major, self.minor, self.revision, self.build
+        ))
+    }
+}
