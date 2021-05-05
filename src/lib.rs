@@ -18,50 +18,39 @@
 )]
 #![allow(clippy::must_use_candidate)]
 
+mod args;
 mod sealed {
     pub trait Sealed {}
 }
 
+use args::{All, Prerelease, Products, Requires, RequiresAny, VersionRange};
+pub use args::{ArgCollector, PopulateArgs};
 use sealed::Sealed;
 use std::{
     fmt::{self, Display, Formatter},
-    io::Write,
-    process::Command,
     str,
 };
-
-/// A trait shared by vswhere queries.
-///
-/// This sealed trait is an implementation detail, and not intended for use outside of this crate.
-pub trait Query: Sealed {
-    #[doc(hidden)]
-    /// Populates a `Command` with command line arguments generated from a query.
-    fn populate_args(&self, cmd: &mut Command);
-}
 
 #[derive(Clone, Debug)]
 /// Constructs a vswhere query for modern products.
 pub struct ModernQuery<'a, 'b, 'c, 'd> {
-    all: bool,
-    prerelease: bool,
-    products: &'a [&'b str],
-    requires: &'c [&'d str],
-    requires_any: bool,
+    all: All,
+    prerelease: Prerelease,
+    products: Products<'a, 'b>,
+    requires: Requires<'c, 'd>,
+    requires_any: RequiresAny,
     version: VersionRange,
 }
 
 impl<'a, 'b, 'c, 'd> ModernQuery<'a, 'b, 'c, 'd> {
-    const EMPTY_PRODUCTS: &'a [&'b str] = &[];
-    const EMPTY_REQUIRES: &'c [&'d str] = &[];
-
     /// Creates a new invocation builder with default parameters.
     pub const fn new() -> Self {
         Self {
-            all: false,
-            prerelease: false,
-            products: Self::EMPTY_PRODUCTS,
-            requires: Self::EMPTY_REQUIRES,
-            requires_any: false,
+            all: All::new(),
+            prerelease: Prerelease::new(),
+            products: Products::new(),
+            requires: Requires::new(),
+            requires_any: RequiresAny::new(),
             version: VersionRange::new(),
         }
     }
@@ -70,7 +59,7 @@ impl<'a, 'b, 'c, 'd> ModernQuery<'a, 'b, 'c, 'd> {
     ///
     /// The default value for this setting is `false`.
     pub fn all(&mut self, value: bool) -> &mut Self {
-        self.all = value;
+        self.all.0 = value;
         self
     }
 
@@ -78,7 +67,7 @@ impl<'a, 'b, 'c, 'd> ModernQuery<'a, 'b, 'c, 'd> {
     ///
     /// The default value for this setting is `false`.
     pub fn prerelease(&mut self, value: bool) -> &mut Self {
-        self.prerelease = value;
+        self.prerelease.0 = value;
         self
     }
 
@@ -90,7 +79,7 @@ impl<'a, 'b, 'c, 'd> ModernQuery<'a, 'b, 'c, 'd> {
     /// use a default allowlist, containing product IDs that correspond to the Community,
     /// Professional, and Enterprise editions of Visual Studio.
     pub fn products(&mut self, value: &'a [&'b str]) -> &mut Self {
-        self.products = value;
+        self.products.0 = value;
         self
     }
 
@@ -99,7 +88,7 @@ impl<'a, 'b, 'c, 'd> ModernQuery<'a, 'b, 'c, 'd> {
     /// The default value for this setting is an empty slice (`&[]`). In this case, vswhere will
     /// not use a component/workload ID allowlist.
     pub fn requires(&mut self, value: &'c [&'d str]) -> &mut Self {
-        self.requires = value;
+        self.requires.0 = value;
         self
     }
 
@@ -109,7 +98,7 @@ impl<'a, 'b, 'c, 'd> ModernQuery<'a, 'b, 'c, 'd> {
     ///
     /// The default value for this setting is `false`.
     pub fn requires_any(&mut self, value: bool) -> &mut Self {
-        self.requires_any = value;
+        self.requires_any.0 = value;
         self
     }
 
@@ -136,82 +125,19 @@ impl<'a, 'b, 'c, 'd> Default for ModernQuery<'a, 'b, 'c, 'd> {
     }
 }
 
-impl<'a, 'b, 'c, 'd> Query for ModernQuery<'a, 'b, 'c, 'd> {
-    fn populate_args(&self, cmd: &mut Command) {
-        if self.all {
-            let _ = cmd.arg("-all");
-        }
-        if self.prerelease {
-            let _ = cmd.arg("-prerelease");
-        }
-        if !self.requires_any {
-            let _ = cmd.arg("-requiresAny");
-        }
-        if !self.products.is_empty() {
-            let _ = cmd.arg("-products");
-            let _ = cmd.args(self.products);
-        }
-        if !self.requires.is_empty() {
-            let _ = cmd.arg("-requires");
-            let _ = cmd.args(self.requires);
-        }
+impl<'a, 'b, 'c, 'd> PopulateArgs for ModernQuery<'a, 'b, 'c, 'd> {
+    fn populate_args<C: ArgCollector>(&self, mut cmd: C) {
+        self.all.populate_args(&mut cmd);
+        self.prerelease.populate_args(&mut cmd);
+        self.requires_any.populate_args(&mut cmd);
+        self.products.populate_args(&mut cmd);
+        self.requires.populate_args(&mut cmd);
         self.version.populate_args(cmd);
     }
 }
 
 #[doc(hidden)]
 impl<'a, 'b, 'c, 'd> Sealed for ModernQuery<'a, 'b, 'c, 'd> {}
-
-#[derive(Clone, Copy, Debug)]
-struct VersionRange {
-    lower: Option<Version>,
-    upper: Option<Version>,
-}
-
-impl VersionRange {
-    const fn new() -> Self {
-        Self {
-            lower: None,
-            upper: None,
-        }
-    }
-}
-
-impl Default for VersionRange {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Display for VersionRange {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match (self.lower, self.upper) {
-            (Some(lower), Some(upper)) => f.write_fmt(format_args!("{},{}", lower, upper)),
-            (Some(lower), None) => f.write_fmt(format_args!("{},", lower)),
-            (None, Some(upper)) => f.write_fmt(format_args!(",{}", upper)),
-            (None, None) => Ok(()),
-        }
-    }
-}
-
-impl Query for VersionRange {
-    fn populate_args(&self, cmd: &mut Command) {
-        let mut buffer = [0; 47];
-        write!(&mut buffer[..], "{}", self).unwrap();
-        let last = buffer
-            .iter()
-            .position(|&e| e == b'\0')
-            .map_or(buffer.len(), usize::from);
-        if last > 0 {
-            // SAFETY: if `<VersionRange as Display>::fmt` doesn't output a UTF-8 string, we have a
-            // very big problem.
-            let s = unsafe { str::from_utf8_unchecked(&buffer[..last]) };
-            let _ = cmd.args(&["-version", s]);
-        }
-    }
-}
-
-impl Sealed for VersionRange {}
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 /// A version number, in the format `[major].[minor].[revision].[build]`.
