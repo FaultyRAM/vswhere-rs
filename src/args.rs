@@ -29,10 +29,12 @@ pub trait ArgCollector: Sealed {
 }
 
 impl<C: ArgCollector> ArgCollector for &mut C {
+    #[doc(hidden)]
     fn arg<S: AsRef<OsStr>>(&mut self, arg: S) {
         (*self).arg(arg)
     }
 
+    #[doc(hidden)]
     fn args<I, S>(&mut self, args: I)
     where
         I: IntoIterator<Item = S>,
@@ -42,13 +44,16 @@ impl<C: ArgCollector> ArgCollector for &mut C {
     }
 }
 
+#[doc(hidden)]
 impl<C: ArgCollector> Sealed for &mut C {}
 
 impl ArgCollector for Command {
+    #[doc(hidden)]
     fn arg<S: AsRef<OsStr>>(&mut self, arg: S) {
         let _ = self.arg(arg);
     }
 
+    #[doc(hidden)]
     fn args<I, S>(&mut self, args: I)
     where
         I: IntoIterator<Item = S>,
@@ -58,6 +63,7 @@ impl ArgCollector for Command {
     }
 }
 
+#[doc(hidden)]
 impl Sealed for Command {}
 
 #[allow(clippy::module_name_repetitions)]

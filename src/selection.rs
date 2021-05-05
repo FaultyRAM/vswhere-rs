@@ -110,6 +110,7 @@ impl<'a, 'b, 'c, 'd> Default for Modern<'a, 'b, 'c, 'd> {
 }
 
 impl<'a, 'b, 'c, 'd> PopulateArgs for Modern<'a, 'b, 'c, 'd> {
+    #[doc(hidden)]
     fn populate_args<C: ArgCollector>(&self, mut cmd: C) {
         self.all.populate_args(&mut cmd);
         self.prerelease.populate_args(&mut cmd);
