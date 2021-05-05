@@ -123,3 +123,73 @@ impl<'a, 'b, 'c, 'd> PopulateArgs for Modern<'a, 'b, 'c, 'd> {
 
 #[doc(hidden)]
 impl<'a, 'b, 'c, 'd> Sealed for Modern<'a, 'b, 'c, 'd> {}
+
+#[derive(Clone, Debug)]
+/// Selection parameters for legacy instances.
+pub struct Legacy {
+    all: All,
+    prerelease: Prerelease,
+    version: VersionRange,
+}
+
+impl Legacy {
+    /// Creates a new invocation builder with default parameters.
+    pub const fn new() -> Self {
+        Self {
+            all: All::new(),
+            prerelease: Prerelease::new(),
+            version: VersionRange::new(),
+        }
+    }
+
+    /// If `true`, vswhere will include incomplete and/or non-functional instances in its results.
+    ///
+    /// The default value for this setting is `false`.
+    pub fn all(&mut self, value: bool) -> &mut Self {
+        self.all.0 = value;
+        self
+    }
+
+    /// If `true`, vswhere will include prelease instances in its results.
+    ///
+    /// The default value for this setting is `false`.
+    pub fn prerelease(&mut self, value: bool) -> &mut Self {
+        self.prerelease.0 = value;
+        self
+    }
+
+    /// Specifies a range of versions that vswhere will look for.
+    ///
+    /// Both the lower and upper bounds are inclusive.
+    ///
+    /// A value of `None` represents an infinite bound, i.e. a lower bound of `None` returns all
+    /// versions up to and including the upper bound, while an upper bound of `None` returns all
+    /// versions starting from the lower bound.
+    ///
+    /// By default, both bounds are `None`. In this case, vswhere will not limit search results
+    /// based on version.
+    pub fn version(&mut self, lower: Option<Version>, upper: Option<Version>) -> &mut Self {
+        self.version.lower = lower;
+        self.version.upper = upper;
+        self
+    }
+}
+
+impl Default for Legacy {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl PopulateArgs for Legacy {
+    #[doc(hidden)]
+    fn populate_args<C: ArgCollector>(&self, mut cmd: C) {
+        cmd.arg("-legacy");
+        self.all.populate_args(&mut cmd);
+        self.prerelease.populate_args(&mut cmd);
+        self.version.populate_args(cmd);
+    }
+}
+
+#[doc(hidden)]
+impl Sealed for Legacy {}
