@@ -19,9 +19,6 @@
 #![allow(clippy::must_use_candidate)]
 
 pub mod args;
-mod sealed {
-    pub trait Sealed {}
-}
 pub mod selection;
 
 use std::fmt::{self, Display, Formatter};

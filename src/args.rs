@@ -5,7 +5,7 @@
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your option. This file may not be copied,
 // modified, or distributed except according to those terms.
 
-use crate::{sealed::Sealed, Version};
+use crate::Version;
 use std::{
     ffi::OsStr,
     fmt::{self, Display, Formatter},
@@ -16,8 +16,8 @@ use std::{
 
 /// A trait shared by types that collect command line arguments.
 ///
-/// This sealed trait is an implementation detail, and not intended for use outside of this crate.
-pub trait ArgCollector: Sealed {
+/// This is an implementation detail. Do not implement it outside of this crate.
+pub trait ArgCollector {
     #[doc(hidden)]
     fn arg<S: AsRef<OsStr>>(&mut self, arg: S);
 
@@ -44,9 +44,6 @@ impl<C: ArgCollector> ArgCollector for &mut C {
     }
 }
 
-#[doc(hidden)]
-impl<C: ArgCollector> Sealed for &mut C {}
-
 impl ArgCollector for Command {
     #[doc(hidden)]
     fn arg<S: AsRef<OsStr>>(&mut self, arg: S) {
@@ -63,14 +60,11 @@ impl ArgCollector for Command {
     }
 }
 
-#[doc(hidden)]
-impl Sealed for Command {}
-
 #[allow(clippy::module_name_repetitions)]
 /// A trait shared by types that generate command line arguments.
 ///
-/// This sealed trait is an implementation detail, and not intended for use outside of this crate.
-pub trait PopulateArgs: Sealed {
+/// This is an implementation detail. Do not implement it outside of this crate.
+pub trait PopulateArgs {
     #[doc(hidden)]
     fn populate_args<C: ArgCollector>(&self, cmd: C);
 }
@@ -93,8 +87,6 @@ impl PopulateArgs for All {
     }
 }
 
-impl Sealed for All {}
-
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Prerelease(pub(crate) bool);
@@ -112,8 +104,6 @@ impl PopulateArgs for Prerelease {
         }
     }
 }
-
-impl Sealed for Prerelease {}
 
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug)]
@@ -134,8 +124,6 @@ impl<'a, 'b> PopulateArgs for Products<'a, 'b> {
     }
 }
 
-impl<'a, 'b> Sealed for Products<'a, 'b> {}
-
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Requires<'a, 'b>(pub(crate) &'a [&'b str]);
@@ -155,8 +143,6 @@ impl<'a, 'b> PopulateArgs for Requires<'a, 'b> {
     }
 }
 
-impl<'a, 'b> Sealed for Requires<'a, 'b> {}
-
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct RequiresAny(pub(crate) bool);
@@ -174,8 +160,6 @@ impl PopulateArgs for RequiresAny {
         }
     }
 }
-
-impl Sealed for RequiresAny {}
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct VersionRange {
@@ -219,5 +203,3 @@ impl PopulateArgs for VersionRange {
         }
     }
 }
-
-impl Sealed for VersionRange {}

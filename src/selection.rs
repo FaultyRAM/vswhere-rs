@@ -11,9 +11,9 @@ use crate::{
     args::{
         All, ArgCollector, PopulateArgs, Prerelease, Products, Requires, RequiresAny, VersionRange,
     },
-    sealed::Sealed,
     Version,
 };
+use std::path::Path;
 
 #[derive(Clone, Debug)]
 /// Selection parameters for modern (side-by-side installable) instances.
@@ -121,9 +121,6 @@ impl<'a, 'b, 'c, 'd> PopulateArgs for Modern<'a, 'b, 'c, 'd> {
     }
 }
 
-#[doc(hidden)]
-impl<'a, 'b, 'c, 'd> Sealed for Modern<'a, 'b, 'c, 'd> {}
-
 #[derive(Clone, Debug)]
 /// Selection parameters for legacy instances.
 pub struct Legacy {
@@ -191,5 +188,10 @@ impl PopulateArgs for Legacy {
     }
 }
 
-#[doc(hidden)]
-impl Sealed for Legacy {}
+impl<P: AsRef<Path>> PopulateArgs for P {
+    #[doc(hidden)]
+    fn populate_args<C: ArgCollector>(&self, mut cmd: C) {
+        cmd.arg("-path");
+        cmd.arg(self.as_ref());
+    }
+}
