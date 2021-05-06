@@ -1,11 +1,10 @@
 # vswhere-rs
 
-[![Travis CI](https://travis-ci.com/FaultyRAM/vswhere-rs.svg)][1]
-[![AppVeyor](https://ci.appveyor.com/api/projects/status/a6p7trkglc90jcd3?retina=true&svg=true)][2]
-[![Crates.io](https://img.shields.io/crates/v/vswhere.svg)][3]
-[![Docs.rs](https://docs.rs/vswhere/badge.svg)][4]
+![GitHub Actions](https://github.com/FaultyRAM/vswhere-rs/actions/workflows/ci.yml/badge.svg)
+[![Crates.io](https://img.shields.io/crates/v/vswhere.svg)][Crates.io]
+[![Docs.rs](https://docs.rs/vswhere/badge.svg)][Docs.rs]
 
-Provides support for invoking and capturing the output of the [vswhere][5] utility.
+Provides support for invoking and capturing the output of the [vswhere] utility.
 
 ## Background
 
@@ -18,27 +17,32 @@ and retrieve output from vswhere in an idiomatic manner.
 
 ## Requirements
 
-This crate works with vswhere 2.5.2 or newer. Older versions are not supported since they do not
-accept the `-utf8` flag, which forces vswhere to generate UTF-8 encoded output (otherwise vswhere
-uses the system default encoding). vswhere can be installed in one of three different ways:
+vswhere-rs requires vswhere 2.7.1 or later. vswhere is bundled with Microsoft Visual Studio
+Installer, and can also be obtained from other sources; see [the vswhere wiki] for more
+information.
 
-* Via [Chocolatey][6] (recommended - package page [here][7]);
-* As part of Visual Studio Installer (vswhere.exe will be located in
-  `%ProgramFiles(x86)%\Microsoft Visual Studio\Installer` - note that the bundled version tends to
-  be outdated);
-* [Manually][8], by downloading vswhere.exe to the desired location.
+## Usage
 
-## Example
+Add vswhere-rs to your Cargo.toml:
+
+```toml
+[target.'cfg(target_os = "windows")'.dependencies]
+vswhere = "^0.2.0"
+```
+
+Then pass an instance of one of the selection types to a runner function:
 
 ```rust
-extern crate vswhere;
-
-use vswhere::Config;
+use vswhere::selection::Modern;
 
 fn main() {
-    println!("{:?}", Config::run_default_path().unwrap());
+    let mut selection = Modern::new();
+    let _ = selection.all(true);
+    println!("{}", vswhere::run(&selection).unwrap());
 }
 ```
+
+See [the API documentation][Docs.rs] for more information.
 
 ## License
 
@@ -57,11 +61,7 @@ submitted for inclusion in the work by you, as defined in the Apache-2.0
 license, shall be dual licensed as above, without any additional terms or
 conditions.
 
-[1]: https://travis-ci.com/FaultyRAM/vswhere-rs
-[2]: https://ci.appveyor.com/project/FaultyRAM/vswhere-rs
-[3]: https://crates.io/crates/vswhere
-[4]: https://docs.rs/vswhere
-[5]: https://github.com/Microsoft/vswhere
-[6]: https://chocolatey.org
-[7]: https://chocolatey.org/packages/vswhere
-[8]: https://github.com/Microsoft/vswhere/releases
+[Crates.io]: https://crates.io/crates/vswhere
+[Docs.rs]: https://docs.rs/vswhere
+[the vswhere wiki]: https://github.com/Microsoft/vswhere/wiki/Installing
+[vswhere]: https://github.com/Microsoft/vswhere
