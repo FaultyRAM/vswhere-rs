@@ -6,13 +6,7 @@
 // modified, or distributed except according to those terms.
 
 use crate::Version;
-use std::{
-    ffi::OsStr,
-    fmt::{self, Display, Formatter},
-    io::Write,
-    process::Command,
-    str,
-};
+use std::{ffi::OsStr, io::Write, process::Command, str};
 
 /// A trait shared by types that collect command line arguments.
 ///
@@ -176,21 +170,16 @@ impl VersionRange {
     }
 }
 
-impl Display for VersionRange {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match (self.lower, self.upper) {
-            (Some(lower), Some(upper)) => f.write_fmt(format_args!("{},{}", lower, upper)),
-            (Some(lower), None) => f.write_fmt(format_args!("{},", lower)),
-            (None, Some(upper)) => f.write_fmt(format_args!(",{}", upper)),
-            (None, None) => Ok(()),
-        }
-    }
-}
-
 impl PopulateArgs for VersionRange {
     fn populate_args<C: ArgCollector>(&self, mut cmd: C) {
         let mut buffer = [0; 47];
-        write!(&mut buffer[..], "{}", self).unwrap();
+        match (self.lower, self.upper) {
+            (Some(lower), Some(upper)) => write!(&mut buffer[..], "{},{}", lower, upper),
+            (Some(lower), None) => write!(&mut buffer[..], "{},", lower),
+            (None, Some(upper)) => write!(&mut buffer[..], ",{}", upper),
+            (None, None) => Ok(()),
+        }
+        .unwrap();
         let last = buffer
             .iter()
             .position(|&e| e == b'\0')
