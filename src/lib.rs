@@ -24,6 +24,7 @@ pub mod selection;
 use args::PopulateArgs;
 use serde_json::Value;
 use std::{
+    env,
     ffi::OsString,
     fmt::{self, Display, Formatter},
     io,
@@ -47,9 +48,8 @@ use winapi::{
 ///
 /// This function attempts to run vswhere from the following locations:
 ///
-/// 1. The current working directory;
-/// 2. Each folder specified in the `PATH` environment variable;
-/// 3. The path where Visual Studio Installer is located
+/// 1. Each folder specified in the `PATH` environment variable;
+/// 2. The path where Visual Studio Installer is located
 ///    (`%ProgramFiles(x86)%\Microsoft Visual Studio\Installer`).
 ///
 /// # Errors
@@ -69,14 +69,27 @@ pub fn run<S: PopulateArgs>(selection: &S) -> io::Result<Value> {
     })
 }
 
-/// Invokes vswhere either in the current working directory or on the current `PATH`, with the
-/// given selection parameters.
+/// Invokes vswhere on the current `PATH` with the given selection parameters.
 ///
 /// # Errors
 ///
 /// This function returns an `io::Error` if vswhere fails to run or does not successfully exit.
 pub fn run_path<S: PopulateArgs>(selection: &S) -> io::Result<Value> {
-    run_custom_location("vswhere.exe", selection)
+    env::var_os("PATH")
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "`PATH` is not set"))
+        .and_then(|var| {
+            for path in var.to_string_lossy().split(';') {
+                match run_custom_location(Path::new(path).join("vswhere.exe"), selection) {
+                    Ok(v) => return Ok(v),
+                    Err(e) if e.kind() == io::ErrorKind::NotFound => continue,
+                    Err(e) => return Err(e),
+                }
+            }
+            Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "could not find vswhere.exe in `PATH`",
+            ))
+        })
 }
 
 /// Invokes vswhere bundled with Visual Studio Installer with the given selection parameters.
