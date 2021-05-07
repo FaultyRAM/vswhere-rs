@@ -78,8 +78,9 @@ pub fn run_path<S: PopulateArgs>(selection: &S) -> io::Result<Value> {
     env::var_os("PATH")
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "`PATH` is not set"))
         .and_then(|var| {
-            for path in env::split_paths(&var) {
-                match run_custom_location(path.join("vswhere.exe"), selection) {
+            for mut path in env::split_paths(&var) {
+                path.push("vswhere.exe");
+                match run_custom_location(path, selection) {
                     Ok(v) => return Ok(v),
                     Err(e) if e.kind() == io::ErrorKind::NotFound => continue,
                     Err(e) => return Err(e),
