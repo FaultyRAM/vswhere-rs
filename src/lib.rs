@@ -10,10 +10,10 @@
 #![deny(
     clippy::all,
     clippy::pedantic,
+    rustdoc::all,
     warnings,
     future_incompatible,
     rust_2018_idioms,
-    rustdoc,
     unused
 )]
 #![allow(clippy::must_use_candidate)]
